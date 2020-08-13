@@ -5,7 +5,7 @@ use std::sync::mpsc::{Receiver, RecvError};
 use std::thread;
 use std::thread::JoinHandle;
 
-type Processor<T, U> = Box<dyn Fn(T) -> U + Send + Sync + 'static>;
+type Processor<T, U> = dyn (Fn(T) -> U) + Send + Sync + 'static;
 trait Processable = Send + Sync + 'static;
 
 struct Node<T: Processable> {
@@ -35,7 +35,7 @@ where
 
 fn map<T: Processable, U: Processable>(
     n: Node<T>,
-    f: Processor<T, U>,
+    f: &'static Processor<T, U>,
 ) -> (Node<U>, JoinHandle<()>) {
     let (new_sender, new_receiver) = channel();
 
@@ -84,7 +84,7 @@ impl<T: Processable> Stream<T> {
         }
     }
 
-    fn map<U: Processable>(mut self, f: Processor<T, U>) -> Stream<U> {
+    fn map<U: Processable>(mut self, f: &'static Processor<T, U>) -> Stream<U> {
         let (new_node, new_process) = map(self.node, f);
         self.processes.push_back(new_process);
         Stream {
@@ -122,11 +122,11 @@ mod tests {
     }
 
     #[test]
-    fn foo() {
+    fn bare_fns() {
         let v = vec![1, 2, 3, 4];
 
         let (source_node, source_handle) = from(v);
-        let (inc_node, inc_handle) = map(source_node, Box::new(|i| i + 1));
+        let (inc_node, inc_handle) = map(source_node, &|i| i + 1);
         let out = collect(inc_node);
 
         let _ = source_handle.join();
@@ -136,12 +136,12 @@ mod tests {
     }
 
     #[test]
-    fn bar() {
+    fn stream() {
         let v = vec![1, 2, 3, 4];
 
         let out = Stream::from(v)
-            .map(Box::new(|i| i + 1))
-            .map(Box::new(|i| i.to_string()))
+            .map(&|i| i + 1)
+            .map(&|i| i.to_string())
             .collect();
 
         let mut l = LinkedList::new();

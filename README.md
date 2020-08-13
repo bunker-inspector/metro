@@ -3,8 +3,8 @@
 Ex:
 ```rust
 let out = Stream::from(v)
-    .map(Box::new(|i| i + 1))
-    .map(Box::new(|i| i.to_string()))
+    .map(&|i| i + 1)
+    .map(&|i| i.to_string())
     .collect();
 
 => ["2", "3", "4", "5"]
