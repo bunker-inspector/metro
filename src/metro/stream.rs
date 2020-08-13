@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::collections::LinkedList;
 use std::iter::IntoIterator;
 use std::sync::mpsc::channel;
@@ -86,6 +87,46 @@ where
     l
 }
 
+struct Stream<T>
+where
+    T: Sync + Send + 'static {
+    node: Node<T>,
+    processes: LinkedList<JoinHandle<()>>
+}
+
+impl<T: Any> Stream<T>
+where
+    T:Sync + Send + 'static {
+    fn from<I>(i: I) -> Stream<T>
+        where I: IntoIterator<Item = T> + Send + 'static
+    {
+        let (source_node, source_process) = Source::from(i);
+
+        let mut processes = LinkedList::new();
+
+        processes.push_back(source_process);
+        Stream{node: source_node, processes}
+    }
+
+    fn map(mut self, f: Box<dyn Fn(T) -> T + Send + Sync + 'static>) -> Self {
+        let (new_node, new_process) = map(self.node, f);
+        self.node = new_node;
+        self.processes.push_back(new_process);
+        self
+    }
+
+    fn sink(mut self) -> LinkedList<T> {
+        let out = sink(self.node);
+
+        while let Some(_) = self.processes.front() {
+            let p = self.processes.pop_front().unwrap();
+            p.join();
+        }
+
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,5 +155,17 @@ mod tests {
         let _ = inc_handle.join();
 
         assert_eq!(out, to_list(vec![2, 3, 4, 5]));
+    }
+
+    #[test]
+    fn bar() {
+        let v = vec![1, 2, 3, 4];
+
+        let out = Stream::from(v)
+            .map(Box::new(|i| i + 1))
+            .map(Box::new(|i| i * 2))
+            .sink();
+
+        assert_eq!(out, to_list(vec![4, 6, 8, 10]));
     }
 }
