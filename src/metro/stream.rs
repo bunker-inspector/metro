@@ -8,20 +8,16 @@ use std::thread::JoinHandle;
 type Processor<T, U> = Box<dyn Fn(T) -> U + Send + Sync + 'static>;
 trait Processable = Send + Sync + 'static;
 
-struct Node<T>
-where
-    T: Send + Sync + 'static,
-{
+struct Node<T: Processable> {
     receiver: Receiver<T>,
 }
 
 unsafe impl<T: Processable> Send for Node<T> {}
 unsafe impl<T: Processable> Sync for Node<T> {}
 
-fn from<I, T>(i: I) -> (Node<T>, JoinHandle<()>)
+fn from<I, T: Processable>(i: I) -> (Node<T>, JoinHandle<()>)
 where
- I: IntoIterator<Item = T> + Send + 'static,
- T: Send + Sync + 'static
+    I: IntoIterator<Item = T> + Send + 'static,
 {
     let (new_sender, new_receiver) = channel();
 
@@ -40,8 +36,7 @@ where
 fn map<T: Processable, U: Processable>(
     n: Node<T>,
     f: Processor<T, U>,
-) -> (Node<U>, JoinHandle<()>)
-{
+) -> (Node<U>, JoinHandle<()>) {
     let (new_sender, new_receiver) = channel();
 
     (
@@ -56,8 +51,7 @@ fn map<T: Processable, U: Processable>(
     )
 }
 
-fn collect<T: Processable>(n: Node<T>) -> LinkedList<T>
-{
+fn collect<T: Processable>(n: Node<T>) -> LinkedList<T> {
     let mut l = LinkedList::new();
     while match n.receiver.recv() {
         Ok(val) => {
@@ -69,13 +63,12 @@ fn collect<T: Processable>(n: Node<T>) -> LinkedList<T>
     l
 }
 
-struct Stream<T: Processable>
-{
+struct Stream<T: Processable> {
     node: Node<T>,
     processes: LinkedList<JoinHandle<()>>,
 }
 
-impl<T: Send + Sync + 'static> Stream<T> {
+impl<T: Processable> Stream<T> {
     fn from<I>(i: I) -> Stream<T>
     where
         I: IntoIterator<Item = T> + Send + 'static,
@@ -91,10 +84,7 @@ impl<T: Send + Sync + 'static> Stream<T> {
         }
     }
 
-    fn map<U: Processable>(
-        mut self,
-        f: Processor<T, U>,
-    ) -> Stream<U> {
+    fn map<U: Processable>(mut self, f: Processor<T, U>) -> Stream<U> {
         let (new_node, new_process) = map(self.node, f);
         self.processes.push_back(new_process);
         Stream {
