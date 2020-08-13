@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::collections::LinkedList;
 use std::iter::IntoIterator;
 use std::sync::mpsc::channel;
@@ -72,7 +71,7 @@ where
     )
 }
 
-fn sink<T>(n: Node<T>) -> LinkedList<T>
+fn collect<T>(n: Node<T>) -> LinkedList<T>
 where
     T: Send + Sync + 'static,
 {
@@ -94,9 +93,7 @@ where
     processes: LinkedList<JoinHandle<()>>
 }
 
-impl<T: Any> Stream<T>
-where
-    T:Sync + Send + 'static {
+impl<T: Send + Sync + 'static> Stream<T> {
     fn from<I>(i: I) -> Stream<T>
         where I: IntoIterator<Item = T> + Send + 'static
     {
@@ -108,15 +105,14 @@ where
         Stream{node: source_node, processes}
     }
 
-    fn map(mut self, f: Box<dyn Fn(T) -> T + Send + Sync + 'static>) -> Self {
+    fn map<U: Send + Sync + 'static>(mut self, f: Box<dyn Fn(T) -> U + Send + Sync + 'static>) -> Stream<U> {
         let (new_node, new_process) = map(self.node, f);
-        self.node = new_node;
         self.processes.push_back(new_process);
-        self
+        Stream{node: new_node, processes: self.processes}
     }
 
-    fn sink(mut self) -> LinkedList<T> {
-        let out = sink(self.node);
+    fn collect(mut self) -> LinkedList<T> {
+        let out = collect(self.node);
 
         while let Some(_) = self.processes.front() {
             let p = self.processes.pop_front().unwrap();
@@ -149,7 +145,7 @@ mod tests {
 
         let (source_node, source_handle) = Source::from(v);
         let (inc_node, inc_handle) = map(source_node, Box::new(|i| i + 1));
-        let out = sink(inc_node);
+        let out = collect(inc_node);
 
         let _ = source_handle.join();
         let _ = inc_handle.join();
@@ -163,9 +159,15 @@ mod tests {
 
         let out = Stream::from(v)
             .map(Box::new(|i| i + 1))
-            .map(Box::new(|i| i * 2))
-            .sink();
+            .map(Box::new(|i| i.to_string()))
+            .collect();
 
-        assert_eq!(out, to_list(vec![4, 6, 8, 10]));
+        let mut l = LinkedList::new();
+        l.push_back("2".to_string());
+        l.push_back("3".to_string());
+        l.push_back("4".to_string());
+        l.push_back("5".to_string());
+
+        assert_eq!(out, l);
     }
 }
