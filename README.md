@@ -2,6 +2,8 @@
 
 Ex:
 ```rust
+let v = vec![1, 2, 3, 4];
+
 let out = Stream::from(v)
     .map(&|i| i + 1)
     .map(&|i| i.to_string())
