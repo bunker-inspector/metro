@@ -9,5 +9,5 @@ let out = Stream::from(v)
     .map(&|i| i.to_string())
     .collect();
 
-=> ["2", "3", "4", "5"]
+// => ["2", "3", "4", "5"]
 ```

@@ -33,6 +33,26 @@ where
     )
 }
 
+fn filter<T: Processable>(
+    n: Node<T>,
+    pred: &'static Processor<T, Option<T>>,
+) -> (Node<T>, JoinHandle<()>) {
+    let (new_sender, new_receiver) = channel();
+
+    (
+        Node {
+            receiver: new_receiver,
+        },
+        thread::spawn(move || {
+            while let Ok(val) = n.receiver.recv() {
+                if let Some(passing) = pred(val) {
+                    new_sender.send(passing).unwrap();
+                }
+            }
+        }),
+    )
+}
+
 fn map<T: Processable, U: Processable>(
     n: Node<T>,
     f: &'static Processor<T, U>,
@@ -81,6 +101,15 @@ impl<T: Processable> Stream<T> {
         Stream {
             node: source_node,
             processes,
+        }
+    }
+
+    fn filter(mut self, pred: &'static Processor<T, Option<T>>) -> Stream<T> {
+        let (new_node, new_process) = filter(self.node, pred);
+        self.processes.push_back(new_process);
+        Stream {
+            node: new_node,
+            processes: self.processes,
         }
     }
 
@@ -136,7 +165,24 @@ mod tests {
     }
 
     #[test]
-    fn stream() {
+    fn filter_test() {
+        let v = vec![1, 2, 3, 4];
+
+        let out = Stream::from(v)
+            .filter(&|i| {
+                if i % 2 == 0 {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        assert_eq!(out, to_list(vec![2, 4]))
+    }
+
+    #[test]
+    fn map_test() {
         let v = vec![1, 2, 3, 4];
 
         let out = Stream::from(v)
