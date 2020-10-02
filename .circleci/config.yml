@@ -1,0 +1,30 @@
+version: 2
+
+jobs:
+  test:
+    docker:
+      - image: rustlang/rust:nightly
+    steps:
+      - checkout
+      - run:
+          name: Version information
+          command: rustc --version; cargo --version; rustup --version
+      - run:
+          name: Calculate dependencies
+          command: cargo generate-lockfile
+      - restore_cache:
+          keys:
+            - metro-{{ CIRCLE_BRANCH }}-{{ CIRCLE_SHA1 }}
+      - run:
+          name: Build all targets
+          command: cargo build --all --all-targets
+      - save_cache:
+          paths:
+            - /usr/local/cargo/registry
+            - target/debug/.fingerprint
+            - target/debug/build
+            - target/debug/deps
+          key: v4-cargo-cache-{{ CIRCLE_BRANCH }}-{{ CIRCLE_SHA1 }}
+      - run:
+          name: Run all tests
+          command: cargo test --all
