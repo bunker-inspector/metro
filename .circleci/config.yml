@@ -1,30 +1,57 @@
-version: 2
+version: 2.1
+
+executors:
+  rust_executor:
+    docker:
+      - image: rustlang/rust:nightly-alpine3.12
 
 jobs:
-  test:
-    docker:
-      - image: rustlang/rust:nightly
+  build:
+    executor: rust_executor
     steps:
+      - run:
+          command: apk add musl-dev
       - checkout
-      - run:
-          name: Version information
-          command: rustc --version; cargo --version; rustup --version
-      - run:
-          name: Calculate dependencies
-          command: cargo generate-lockfile
       - restore_cache:
-          keys:
-            - metro-{{ CIRCLE_BRANCH }}-{{ CIRCLE_SHA1 }}
-      - run:
-          name: Build all targets
-          command: cargo build --all --all-targets
+          key: metro--{{ .Branch }}--{{ .Revision }}
+      - run: cargo build
       - save_cache:
+          key: metro--{{ .Branch }}--{{ .Revision }}
           paths:
-            - /usr/local/cargo/registry
-            - target/debug/.fingerprint
-            - target/debug/build
-            - target/debug/deps
-          key: v4-cargo-cache-{{ CIRCLE_BRANCH }}-{{ CIRCLE_SHA1 }}
-      - run:
-          name: Run all tests
-          command: cargo test --all
+            - /root/
+            - /usr/local/cargo
+
+  check_formatting:
+    executor: rust_executor
+    steps:
+      - restore_cache:
+          key: metro--{{ .Branch }}--{{ .Revision }}
+      - run: cargo fmt -- --check
+
+  lint:
+    executor: rust_executor
+    steps:
+      - restore_cache:
+          key: metro--{{ .Branch }}--{{ .Revision }}
+      - run: cargo clippy -- -D warnings
+
+  test:
+    executor: rust_executor
+    steps:
+      - restore_cache:
+          key: metro--{{ .Branch }}--{{ .Revision }}
+      - run: cargo test
+
+workflows:
+  build_and_test:
+    jobs:
+      - build
+      - check_formatting:
+          requires:
+            - build
+      - lint:
+          requires:
+            - build
+      - test:
+          requires:
+            - build
