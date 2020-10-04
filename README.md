@@ -1,7 +1,6 @@
 ## A library for parallel stream processing in Rust (in extremely early development. If you are here, this is not worth looking at)
 
 [![CircleCI](https://circleci.com/gh/bunker-inspector/metro.svg?style=svg)](https://circleci.com/gh/bunker-inspector/metro)
-]
 
 Ex:
 ```rust
