@@ -1,4 +1,4 @@
-## A library for parallel stream processing in Rust (in extremely early development. If you are here, this is not worth looking at)
+A library for parallel stream processing inspired by [manifold](https://github.com/aleph-io/manifold)
 
 [![CircleCI](https://circleci.com/gh/bunker-inspector/metro.svg?style=svg)](https://circleci.com/gh/bunker-inspector/metro)
 
